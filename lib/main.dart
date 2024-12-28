@@ -279,6 +279,7 @@ class _MyHomePageState extends State<MyHomePage> {
     _brincoCharacteristic?.lastValueStream.listen((data) {
       if (dadoCompleto(data)) {
         data = _data;
+        print(data);
         final pacote = 'Pacote: ${String.fromCharCodes(data, 0)}';
         if (_data.length == 25 || _data.length == 24) {
           /*
@@ -303,6 +304,18 @@ class _MyHomePageState extends State<MyHomePage> {
           var brinco = Funcoes.decodeFdxb(fdxb);
           setState(() {
             _brinco = brinco;
+            _pacote = pacote;
+          });
+        } else if (_data.length == 18) {
+          /*
+          Tru-Test
+          982 000444117438
+          [57, 56, 50, 32, 48, 48, 48, 52, 52, 52, 49, 49, 55, 52, 51, 56, 13, 10]
+          */
+          var brinco = String.fromCharCodes(data, 0, _data.length - 2);
+
+          setState(() {
+            _brinco = brinco.replaceAll(' ', '');
             _pacote = pacote;
           });
         } else {
