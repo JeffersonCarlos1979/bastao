@@ -47,7 +47,7 @@ class Alerta {
             ),
             leading: icon,
           ),
-          content: Container(
+          content: SizedBox(
             //color: Colors.red,
             width: largura,
             child: Text(
