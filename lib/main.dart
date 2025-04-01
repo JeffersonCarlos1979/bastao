@@ -3,8 +3,9 @@ import 'dart:io';
 
 import 'package:bastao/constantes/wtbt.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_blue/flutter_blue.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 
@@ -61,12 +62,10 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
   bool _isScannig = false;
   bool encontrouDevice = false;
   int maxRssi = -1000;
 
-  bool _precisaDepermissao = false;
   BluetoothDevice? _device;
 
   bool _manterConectado = true;
@@ -82,6 +81,8 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _conectado = false;
 
   String _pacote = '';
+
+  TipoBastao tipoBastao = TipoBastao.pt280;
 
   @override
   void initState() {
@@ -170,13 +171,15 @@ class _MyHomePageState extends State<MyHomePage> {
   Future _procurarPlataformas() async {
     if (_isScannig) return;
 
+    if (kDebugMode) {
+      print("inicio _procurarPlataformas()");
+    }
+
     StreamSubscription<List<ScanResult>>? subscription;
-    FlutterBlue flutterBlue = FlutterBlue.instance;
     encontrouDevice = false;
     maxRssi = -1000;
 
-    flutterBlue
-        .startScan(timeout: const Duration(seconds: 3))
+    FlutterBluePlus.startScan(timeout: const Duration(seconds: 3))
         .then((value) async {
       //print('Terminei scan');
       _isScannig = false;
@@ -195,32 +198,41 @@ class _MyHomePageState extends State<MyHomePage> {
 
     _isScannig = true;
 
-    subscription = flutterBlue.scanResults.listen((results) {
+    subscription = FlutterBluePlus.scanResults.listen((results) {
+      if (kDebugMode) {
+        Funcoes.printD('wtapp:---Encontrei ${results.length} dispositivos---');
+      }
       for (ScanResult r in results) {
-        // var tipoIndicador = TipoIndicador.wTBtBr;
-
-        // if (r.device.name.contains(NomeIndicador.wTBtBr)) {
-        //   tipoIndicador = TipoIndicador.wTBtBr;
-        // } else if (r.advertisementData.localName
-        //     .contains(NomeIndicador.wTBtBr)) {
-        //   tipoIndicador = TipoIndicador.wTBtBr;
-        // } else if (r.device.name.contains(NomeIndicador.wt3000IPro)) {
-        //   tipoIndicador = TipoIndicador.wt3000IPro;
-        // } else if (r.device.name.contains(NomeIndicador.wt3000Ir)) {
-        //   tipoIndicador = TipoIndicador.wt3000Ir;
-        // } else {
-        //   continue;
-        // }
-
-        Funcoes.printD('Dispositivos encontrados: ${r.device.name}');
-
+        if (kDebugMode) {
+          Funcoes.printD('wtapp: dispositivo:${r.device.platformName}---');
+        }
         for (var serviceUuid in r.advertisementData.serviceUuids) {
-          var uuId = serviceUuid.toUpperCase().split('-');
-          if (uuId.isNotEmpty && uuId[0].endsWith('3CDD0')) {
-            Funcoes.printD('Encontrei o bastão: ${r.device.name}');
+          if (kDebugMode) {
+            Funcoes.printD(
+                'wtapp:---ServiceUuid: ${serviceUuid.toString().toUpperCase()}---');
+          }
+          var uuId = serviceUuid.toString().toUpperCase().split('-');
+
+          var encontrado = false;
+          if (uuId.isNotEmpty) {
+            if (uuId[0].endsWith(BastaoPt280.atBrincoServiceCurto)) {
+              tipoBastao = TipoBastao.pt280;
+              encontrado = true;
+            } else if (uuId[0].endsWith(BastaoTruTest.atBrincoServiceCurto)) {
+              tipoBastao = TipoBastao.truTest;
+              encontrado = true;
+            }
+          }
+
+          if (encontrado) {
+            if (kDebugMode) {
+              Funcoes.printD(
+                  'wtapp:Encontrei o bastão: ${r.device.platformName}');
+            }
+
             _device = r.device;
 
-            flutterBlue.stopScan;
+            FlutterBluePlus.stopScan;
             if (!encontrouDevice) {
               encontrouDevice = true;
               _conectar();
@@ -264,9 +276,10 @@ class _MyHomePageState extends State<MyHomePage> {
     await _localizarServicos();
     await abrirNotificacoes();
 
-    _brincoCharacteristic?.value.listen((data) {
+    _brincoCharacteristic?.lastValueStream.listen((data) {
       if (dadoCompleto(data)) {
         data = _data;
+        print(data);
         final pacote = 'Pacote: ${String.fromCharCodes(data, 0)}';
         if (_data.length == 25 || _data.length == 24) {
           /*
@@ -293,6 +306,18 @@ class _MyHomePageState extends State<MyHomePage> {
             _brinco = brinco;
             _pacote = pacote;
           });
+        } else if (_data.length == 18) {
+          /*
+          Tru-Test
+          982 000444117438
+          [57, 56, 50, 32, 48, 48, 48, 52, 52, 52, 49, 49, 55, 52, 51, 56, 13, 10]
+          */
+          var brinco = String.fromCharCodes(data, 0, _data.length - 2);
+
+          setState(() {
+            _brinco = brinco.replaceAll(' ', '');
+            _pacote = pacote;
+          });
         } else {
           setState(() {
             _pacote = pacote;
@@ -301,14 +326,16 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     });
 
-    _device?.state.listen((event) {
-      if (event == BluetoothDeviceState.connected) {
-        Funcoes.printD('---Conectou, vou abrir notificações---');
+    _device?.connectionState.listen((event) {
+      if (event == BluetoothConnectionState.connected) {
+        if (kDebugMode) {
+          print('wtapp:---Conectou, vou abrir notificações---');
+        }
         setState(() {
           _conectado = true;
         });
         abrirNotificacoes();
-      } else if (event == BluetoothDeviceState.disconnected) {
+      } else if (event == BluetoothConnectionState.disconnected) {
         setState(() {
           _conectado = false;
         });
@@ -349,8 +376,19 @@ class _MyHomePageState extends State<MyHomePage> {
     if (_device == null) {
       return;
     }
-    Guid uuidBrincoService = Bastao.uuidBrincoService;
-    Guid uuidBrincoCharacteristic = Bastao.uuidPesoCharacteristic;
+    Guid uuidBrincoService = BastaoPt280.uuidBrincoService;
+    Guid uuidBrincoCharacteristic = BastaoPt280.uuidPesoCharacteristic;
+
+    switch (tipoBastao) {
+      case TipoBastao.pt280:
+        uuidBrincoService = BastaoPt280.uuidBrincoService;
+        uuidBrincoCharacteristic = BastaoPt280.uuidPesoCharacteristic;
+        break;
+      case TipoBastao.truTest:
+        uuidBrincoService = BastaoTruTest.uuidBrincoService;
+        uuidBrincoCharacteristic = BastaoTruTest.uuidPesoCharacteristic;
+        break;
+    }
 
     List<BluetoothService> services = await _device!.discoverServices();
 
@@ -435,7 +473,6 @@ class _MyHomePageState extends State<MyHomePage> {
               false;
 
           if (!ok) {
-            _precisaDepermissao = true;
             //_msgStatusNotifier.value = 'Permitir conexão com a plataforma';
             return false;
           }
@@ -472,7 +509,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
         if (!permissionStatus.isGranted) {
           //_msgStatusNotifier.value = 'Permitir conexão com a plataforma';
-          _precisaDepermissao = true;
           return false;
         }
       }
@@ -500,9 +536,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     if (msg != null) {
       //_msgStatusNotifier.value = 'Permitir conexão com a plataforma';
-      _precisaDepermissao = true;
     } else {
-      _precisaDepermissao = false;
       //_msgStatusNotifier.value = AGUARDANDO_CONEXAO;
     }
     Funcoes.printD("_verificarPermissoes() fim");

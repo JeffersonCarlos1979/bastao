@@ -1,9 +1,14 @@
-import 'package:flutter_blue/flutter_blue.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 enum TipoIndicador {
   wt3000Ir,
   wt3000IPro,
   wTBtBr,
+}
+
+enum TipoBastao {
+  pt280,
+  truTest,
 }
 
 class NomeIndicador {
@@ -69,12 +74,44 @@ class Wt3kPRO {
   static final Guid uuidPesoCharacteristic = Guid(atPesoCharacteristic);
 }
 
-class Bastao {
+class BastaoPt280 {
   //Serviços
   static const String atBrincoService = "0003cdd0-0000-1000-8000-00805f9b0131";
+  static const String atBrincoServiceCurto = "3CDD0";
   //Characteristcs
   static const String atBrincoCharacteristic =
       "0003cdd1-0000-1000-8000-00805f9b0131";
+  //Guid serviços
+  static final Guid uuidBrincoService = Guid(atBrincoService);
+  //Guid characteristics
+  static final Guid uuidPesoCharacteristic = Guid(atBrincoCharacteristic);
+}
+
+class BastaoTruTest {
+/*
+Scan for BLE devices, check their Complete Local Name and Service Class UUIDs to
+check that they match those described above (XRP2i + last four digit of serial number
+and 6E400001-B5A3-F393-E0A9-E50E24DCCA9E)
+- Connect to the device
+- Negotiate MTU with the highest value supported by phone (this should happen
+automatically on iOS devices, it must be explicitly required by the app on Android)
+- Retrieve service with ID 6E400001-B5A3-F393-E0A9-E50E24DCCA9E
+- Retrieve characteristic 6E400002-B5A3-F393-E0A9-E50E24DCCA9E that will be used
+to write data sent to the device. You can use write or write without response operations
+to write as many bytes as the negotiated MTU per each write operation.
+- Retrive characteristic 6E400003-B5A3-F393-E0A9-E50E24DCCA9E and activate
+notifications on it, it will be used to receive data from the device
+*/
+
+  //Serviços
+  static const String atBrincoService = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
+  static const String atBrincoServiceCurto = "6E400001";
+  //TX
+  static const String atTxCharacteristic =
+      "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";
+  //RX
+  static const String atBrincoCharacteristic =
+      "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
   //Guid serviços
   static final Guid uuidBrincoService = Guid(atBrincoService);
   //Guid characteristics
